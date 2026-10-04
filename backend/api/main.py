@@ -67,12 +67,55 @@ def create_app(service: Optional[PipelineService] = None) -> FastAPI:
 
     pipeline_service = service or PipelineService(default_perception_json=_DEFAULT_PERCEPTION_JSON)
 
-    # 3. Health Endpoint
+    # 3. Root and Health Endpoints
+    @app.get("/", tags=["System"])
+    async def root() -> Dict[str, str]:
+        return {"status": "ok", "service": "temporal-vision"}
+
     @app.get("/health", tags=["System"])
     async def health() -> Dict[str, str]:
         return {"status": "ok"}
 
-    # 4. Analyze Endpoint
+    # 4. Results Endpoint (Used directly by Frontend)
+    @app.get("/results", tags=["Reasoning"])
+    async def get_results(mock: bool = True) -> Dict[str, Any]:
+        """
+        Unified endpoint serving real perception detections, temporal reasoning events,
+        and narrative explanation.
+        """
+        try:
+            explanation_output = pipeline_service.run_pipeline(
+                perception_json_path=_DEFAULT_PERCEPTION_JSON,
+                mode="mock",
+            )
+            output_dict = explanation_output.to_dict()
+
+            # Load perception frames if available for frontend bounding box overlay
+            perception_frames = []
+            if _DEFAULT_PERCEPTION_JSON.exists():
+                import json
+                try:
+                    with _DEFAULT_PERCEPTION_JSON.open("r", encoding="utf-8") as f:
+                        perception_frames = json.load(f)
+                except Exception as ex:
+                    log.warning("Could not read perception JSON for frontend: %s", ex)
+
+            return {
+                "status": "success",
+                "perception": perception_frames,
+                "events": output_dict.get("events", []),
+                "explanation": output_dict.get("explanation"),
+                "video_path": output_dict.get("video_path"),
+                "processed_at": output_dict.get("processed_at"),
+            }
+        except Exception as e:
+            log.exception("Error serving /results: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e),
+            )
+
+    # 5. Analyze Endpoint
     @app.post("/api/analyze", tags=["Reasoning"])
     async def analyze(
         request: Optional[AnalyzeRequest] = Body(default=None)
@@ -129,3 +172,4 @@ def create_app(service: Optional[PipelineService] = None) -> FastAPI:
 
 
 app = create_app()
+
