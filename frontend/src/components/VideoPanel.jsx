@@ -45,22 +45,29 @@ export default function VideoPanel({
   const [hasVideoError, setHasVideoError] = useState(false);
   const [showVideoMenu, setShowVideoMenu] = useState(false);
 
-  // Sync to selected event timestamp when event is selected
+  const lastSelectedEventIdRef = useRef(null);
+
+  // Seek video only when user clicks/selects a DIFFERENT event from the timeline
   useEffect(() => {
     if (selectedEvent) {
-      const eventSecs = selectedEvent.timestampSeconds !== undefined
-        ? selectedEvent.timestampSeconds
-        : parseTimeToSeconds(selectedEvent.timestamp);
+      const evtId = selectedEvent.id || selectedEvent.type;
+      // If the user selected a new event from outside, seek to it once
+      if (lastSelectedEventIdRef.current !== null && lastSelectedEventIdRef.current !== evtId) {
+        const eventSecs = selectedEvent.timestampSeconds !== undefined
+          ? selectedEvent.timestampSeconds
+          : parseTimeToSeconds(selectedEvent.timestamp);
 
-      setCurrentTime(eventSecs);
-      if (videoRef.current && !isNaN(eventSecs)) {
-        videoRef.current.currentTime = eventSecs;
+        if (!isNaN(eventSecs)) {
+          setCurrentTime(eventSecs);
+          if (videoRef.current) {
+            videoRef.current.currentTime = eventSecs;
+          }
+        }
       }
-      if (onTimeUpdate) {
-        onTimeUpdate(eventSecs);
-      }
+      lastSelectedEventIdRef.current = evtId;
     }
-  }, [selectedEvent]);
+  }, [selectedEvent?.id, selectedEvent?.type]);
+
 
   // Sync with prop videoSrc
   useEffect(() => {

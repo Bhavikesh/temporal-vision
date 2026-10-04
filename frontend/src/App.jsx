@@ -92,27 +92,25 @@ export default function App() {
     }
   };
 
-  // Bidirectional sync: when video time advances or is scrubbed, activate the closest event
+  // Progressive sync: activate the active event corresponding to elapsed playback time
   const handleTimeUpdate = (newTime) => {
     setCurrentTime(newTime);
     if (events && events.length > 0) {
-      let closestEvt = events[0];
-      let minDiff = Math.abs((closestEvt.timestampSeconds ?? 0) - newTime);
+      // Find the most recent event whose timestamp <= newTime + 0.5s tolerance
+      const activePastEvents = events.filter(
+        (e) => (e.timestampSeconds ?? 0) <= newTime + 0.5
+      );
+      
+      const currentEvt = activePastEvents.length > 0
+        ? activePastEvents[activePastEvents.length - 1]
+        : events[0];
 
-      for (let i = 1; i < events.length; i++) {
-        const evtTime = events[i].timestampSeconds ?? 0;
-        const diff = Math.abs(evtTime - newTime);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestEvt = events[i];
-        }
-      }
-
-      if (closestEvt && (closestEvt.id || closestEvt.type) !== selectedEventId) {
-        setSelectedEventId(closestEvt.id || closestEvt.type);
+      if (currentEvt && (currentEvt.id || currentEvt.type) !== selectedEventId) {
+        setSelectedEventId(currentEvt.id || currentEvt.type);
       }
     }
   };
+
 
   const handleRetry = () => {
     fetchBackendData(currentDataset);
