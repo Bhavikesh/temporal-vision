@@ -1,0 +1,42 @@
+# Model weights — never commit
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Generated output
+output/
+masks/
+debug_frames/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+
+# Environment
+.env
+*.env
+venv/
+.venv/
+
+# Secrets
+*.key
+*.pem
+
+# Video / media artifacts
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.png
+*.jpg
+*.jpeg
+
+# Jupyter
+.ipynb_checkpoints/

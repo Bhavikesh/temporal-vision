@@ -1,0 +1,45 @@
+# Temporal Vision — Perception Layer Requirements
+# Environment: yolo_env (conda, Python 3.10, PyTorch 2.11, Apple MPS)
+#
+# STEP 1 — Core pip installs
+# pip install timm "transformers==4.38.2" tokenizers einops addict yapf pycocotools "supervision>=0.20.0"
+#
+# CRITICAL: scipy MUST be installed via conda (not pip) on Apple Silicon to avoid broken ARM binaries:
+#   conda install -n yolo_env scipy
+#
+# STEP 2 — Grounding DINO from source
+#   cd /tmp && git clone https://github.com/IDEA-Research/GroundingDINO.git
+#   pip install --no-build-isolation /tmp/GroundingDINO
+#
+# STEP 3 — SAM 2.1 from source
+#   cd /tmp && git clone https://github.com/facebookresearch/sam2.git
+#   pip install --no-build-isolation /tmp/sam2
+#
+# STEP 4 — Download checkpoints (do NOT commit to git)
+#   mkdir -p checkpoints
+#   # GDino config:
+#   curl -L https://raw.githubusercontent.com/IDEA-Research/GroundingDINO/main/groundingdino/config/GroundingDINO_SwinB_cfg.py -o checkpoints/GroundingDINO_SwinB_cfg.py
+#   # GDino weights (~909MB):
+#   curl -L https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth -o checkpoints/groundingdino_swinb_cogcoor.pth
+#   # SAM 2.1 Base+ weights (~309MB):
+#   curl -L https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt -o checkpoints/sam2.1_hiera_base_plus.pt
+#
+# STEP 5 (optional) — Depth Pro
+#   pip install "git+https://github.com/apple/ml-depth-pro.git"
+#   curl -L <depth_pro_url> -o checkpoints/depth_pro.pt
+#
+# KNOWN COMPATIBILITY NOTES:
+#   - transformers must be pinned to 4.38.x for GroundingDINO (BertModelWarper compat)
+#   - scipy must be conda-installed on macOS ARM to avoid broken .so binaries
+#   - GroundingDINO CUDA C++ ops will not compile on Mac; it falls back to Python ops (correct, slower)
+#   - Set PYTORCH_ENABLE_MPS_FALLBACK=1 before running (SAM 2.1 requirement for MPS)
+
+# Resolved versions (as of install):
+timm>=1.0.0
+transformers==4.38.2
+tokenizers
+einops
+addict
+yapf
+pycocotools
+supervision>=0.20.0
