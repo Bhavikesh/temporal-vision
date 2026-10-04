@@ -1,9 +1,9 @@
 import React from 'react';
 
 export default function SceneGraph({ selectedEvent }) {
-  const subjectName = selectedEvent?.subject || selectedEvent?.actor || 'Person #01';
-  const objectName = selectedEvent?.object || selectedEvent?.target || 'Laptop #02';
-  const eventType = (selectedEvent?.type || selectedEvent?.event || 'PICK_UP').toUpperCase();
+  const subjectName = selectedEvent?.subject || selectedEvent?.actor || 'person_01';
+  const objectName = selectedEvent?.object || selectedEvent?.target || 'laptop_01';
+  const eventType = (selectedEvent?.type || selectedEvent?.event || 'APPROACH').toUpperCase();
 
   const isPickUp = eventType === 'PICK_UP';
   const isApproach = eventType === 'APPROACH';
@@ -20,6 +20,9 @@ export default function SceneGraph({ selectedEvent }) {
     : isReach
     ? 'reaching'
     : eventType.toLowerCase();
+
+  const isDetached = isPickUp || isCarry;
+  const contextAnchor = objectName.toLowerCase().includes('table') ? 'environment' : 'table_01';
 
   return (
     <div className="panel scene-graph-card">
@@ -67,9 +70,9 @@ export default function SceneGraph({ selectedEvent }) {
             <span className="edge-arrow">↓</span>
           </div>
 
-          <div className={`relation-edge ${!isPickUp && !isCarry ? 'active-edge' : 'lifted-edge'}`}>
+          <div className={`relation-edge ${!isDetached ? 'active-edge' : 'lifted-edge'}`}>
             <span className="edge-label">
-              {isPickUp || isCarry ? "detached from surface" : "on Table #01 (stationary)"}
+              {isDetached ? "detached from surface" : `on ${contextAnchor} (stationary)`}
             </span>
             <span className="edge-arrow">↓</span>
           </div>
@@ -101,7 +104,7 @@ export default function SceneGraph({ selectedEvent }) {
               </svg>
             </div>
             <div className="node-info">
-              <span className="node-id">Table #01</span>
+              <span className="node-id">{contextAnchor}</span>
               <span className="node-type">Context Anchor</span>
             </div>
           </div>
@@ -113,12 +116,13 @@ export default function SceneGraph({ selectedEvent }) {
         <span className="triplet-tag">
           <strong>{subjectName}</strong> → <em>{activeRelation}</em> → <strong>{objectName}</strong>
         </span>
-        {!isPickUp && !isCarry && (
+        {!isDetached && contextAnchor !== objectName && (
           <span className="triplet-tag">
-            <strong>{objectName}</strong> → <em>on</em> → <strong>Table #01</strong>
+            <strong>{objectName}</strong> → <em>on</em> → <strong>{contextAnchor}</strong>
           </span>
         )}
       </div>
     </div>
   );
 }
+

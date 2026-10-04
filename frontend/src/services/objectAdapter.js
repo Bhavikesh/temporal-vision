@@ -210,18 +210,32 @@ export function getObjectsAtTimestamp(objectsOrFrames = [], currentTime = 0) {
     return [];
   }
 
-  // If items contain explicit frame timestamps, filter by closest frame
-  const hasTimestamps = objectsOrFrames.some((item) => typeof item.timestamp === 'number');
-  if (!hasTimestamps) {
+  // If items contain explicit frame timestamps, find the closest available frame timestamp
+  const timestamped = objectsOrFrames.filter((item) => typeof item.timestamp === 'number');
+  if (timestamped.length === 0) {
     // Return all static objects if no temporal frames provided
     return objectsOrFrames;
   }
 
-  // Filter objects within temporal window (e.g., +/- 1.0 second) or static objects (timestamp === 0)
-  return objectsOrFrames.filter((obj) => {
-    if (obj.timestamp === 0 || obj.timestamp === undefined) return true;
-    return Math.abs(obj.timestamp - currentTime) <= 1.5;
-  });
+  // Find the closest timestamp present in the dataset
+  let closestTime = timestamped[0].timestamp;
+  let minDiff = Math.abs(closestTime - currentTime);
+
+  for (let i = 1; i < timestamped.length; i++) {
+    const diff = Math.abs(timestamped[i].timestamp - currentTime);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestTime = timestamped[i].timestamp;
+    }
+  }
+
+  // If closest timestamp is within a reasonable distance (e.g. 0.25s), return objects matching that exact timestamp
+  if (minDiff <= 0.35) {
+    return timestamped.filter((obj) => Math.abs(obj.timestamp - closestTime) < 0.001);
+  }
+
+  // If scrubbing beyond available frames or before, return closest frame's objects
+  return timestamped.filter((obj) => Math.abs(obj.timestamp - closestTime) < 0.001);
 }
 
 /**
@@ -232,3 +246,4 @@ export function getObjectsAtTimestamp(objectsOrFrames = [], currentTime = 0) {
 export function formatConfidence(confidence = 0) {
   return `${Math.round(confidence * 100)}%`;
 }
+

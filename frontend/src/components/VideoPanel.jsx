@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { formatConfidence } from '../services/objectAdapter';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { formatConfidence, getObjectsAtTimestamp } from '../services/objectAdapter';
 
 /**
  * Format seconds into mm:ss display
@@ -12,13 +12,15 @@ function formatTime(seconds) {
 }
 
 /**
- * Convert mm:ss string to seconds
+ * Convert mm:ss or numeric string to seconds
  */
 function parseTimeToSeconds(timeStr) {
-  if (!timeStr) return 0;
+  if (timeStr === undefined || timeStr === null) return 0;
   if (typeof timeStr === 'number') return timeStr;
-  const parts = timeStr.split(':').map(Number);
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  const parts = String(timeStr).split(':').map(Number);
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    return parts[0] * 60 + parts[1];
+  }
   return Number(timeStr) || 0;
 }
 
@@ -27,23 +29,26 @@ export default function VideoPanel({
   selectedEvent = null,
   videoSrc = null,
   onTimeUpdate = null,
-  isMockMode = true
+  isMockMode = false
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(5.0); // Default to 00:05 for initial demo state
-  const [duration, setDuration] = useState(10.0);
-  const [activeVideoSrc, setActiveVideoSrc] = useState(videoSrc);
+  const [currentTime, setCurrentTime] = useState(0.0);
+  const [duration, setDuration] = useState(24.0);
+  const [activeVideoSrc, setActiveVideoSrc] = useState(videoSrc || 'http://localhost:8000/output/debug_video.mp4');
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [hasVideoError, setHasVideoError] = useState(false);
 
-  // Sync to selected event timestamp if event changed
+  // Sync to selected event timestamp when event is selected
   useEffect(() => {
-    if (selectedEvent?.timestamp) {
-      const eventSecs = parseTimeToSeconds(selectedEvent.timestamp);
+    if (selectedEvent) {
+      const eventSecs = selectedEvent.timestampSeconds !== undefined
+        ? selectedEvent.timestampSeconds
+        : parseTimeToSeconds(selectedEvent.timestamp);
+
       setCurrentTime(eventSecs);
       if (videoRef.current && !isNaN(eventSecs)) {
         videoRef.current.currentTime = eventSecs;
@@ -62,10 +67,10 @@ export default function VideoPanel({
     }
   }, [videoSrc]);
 
-  // Mock simulation playback timer when no real HTML video is playing
+  // Simulation timer if real HTML5 video fails to load or no video
   useEffect(() => {
     let timer = null;
-    if (isPlaying && (!activeVideoSrc || hasVideoError)) {
+    if (isPlaying && hasVideoError) {
       timer = setInterval(() => {
         setCurrentTime((prev) => {
           const next = prev + 0.1;
@@ -81,7 +86,7 @@ export default function VideoPanel({
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isPlaying, activeVideoSrc, hasVideoError, duration, onTimeUpdate]);
+  }, [isPlaying, hasVideoError, duration, onTimeUpdate]);
 
   // Real HTML5 Video handlers
   const handlePlayPause = () => {
@@ -90,12 +95,10 @@ export default function VideoPanel({
         videoRef.current.pause();
       } else {
         videoRef.current.play().catch(() => {
-          // If auto-play blocked or source missing, fallback to mock timer
           setIsPlaying(true);
         });
       }
     } else {
-      // Toggle mock timer playback
       if (currentTime >= duration) {
         setCurrentTime(0);
       }
@@ -115,7 +118,7 @@ export default function VideoPanel({
 
   const handleVideoLoadedMetadata = () => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration || 10.0);
+      setDuration(videoRef.current.duration || 24.0);
       setIsVideoLoading(false);
       setHasVideoError(false);
     }
@@ -143,9 +146,27 @@ export default function VideoPanel({
     }
   };
 
+  // Dynamically filter active objects at the CURRENT playback time
+  const currentFrameObjects = useMemo(() => {
+    if (!objects || objects.length === 0) return [];
+    return getObjectsAtTimestamp(objects, currentTime);
+  }, [objects, currentTime]);
+
+  // Deduplicated list of all unique tracked entities for bottom footer chip legend
+  const uniqueTrackedEntities = useMemo(() => {
+    if (!objects || objects.length === 0) return [];
+    const map = new Map();
+    for (const obj of objects) {
+      if (!map.has(obj.id)) {
+        map.set(obj.id, obj);
+      }
+    }
+    return Array.from(map.values());
+  }, [objects]);
+
   const currentFrameEstimate = Math.round(currentTime * 30);
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const isPickUpActive = selectedEvent?.type === 'PICK_UP';
+  const isPickUpActive = selectedEvent?.type === 'PICK_UP' || selectedEvent?.event === 'PICK_UP';
 
   return (
     <div className="panel video-panel-card">
@@ -159,13 +180,13 @@ export default function VideoPanel({
           <div>
             <h2 className="panel-title">VIDEO PANEL</h2>
             <span className="panel-subtitle">
-              {activeVideoSrc && !hasVideoError ? "Local Video Stream" : "Demo Stream & Object Localization"}
+              {activeVideoSrc && !hasVideoError ? "Annotated Perception Video Stream" : "Object Localization & Tracking"}
             </span>
           </div>
         </div>
 
         <div className="video-header-actions">
-          {/* Hidden local video file picker for live testing */}
+          {/* Hidden local video file picker for custom video loading */}
           <input
             ref={fileInputRef}
             type="file"
@@ -176,14 +197,14 @@ export default function VideoPanel({
           <button
             className="video-source-btn"
             onClick={() => fileInputRef.current?.click()}
-            title="Load local video file for real video testing"
+            title="Load custom video file"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
-            <span>{activeVideoSrc ? "Change Video" : "Load Video"}</span>
+            <span>Change Video</span>
           </button>
 
           <div className="timestamp-badge">
@@ -195,7 +216,7 @@ export default function VideoPanel({
 
       {/* Video Viewport Container */}
       <div className="video-viewport" ref={containerRef}>
-        {/* Real HTML5 Video element if video source provided */}
+        {/* Real HTML5 Video element pointing to debug video or uploaded video */}
         {activeVideoSrc && !hasVideoError ? (
           <video
             ref={videoRef}
@@ -210,14 +231,14 @@ export default function VideoPanel({
             onWaiting={() => setIsVideoLoading(true)}
             onCanPlay={() => setIsVideoLoading(false)}
             playsInline
+            muted
           />
         ) : (
-          /* High-Tech Demo Canvas Placeholder when no video source active */
+          /* Demo Canvas Backdrop if no HTML5 video */
           <div className="demo-canvas-backdrop">
             <div className="grid-overlay"></div>
-            {/* Visual representation of demo scene objects */}
             <div className="demo-scene-art">
-              <div className="scene-camera-tag">CAMERA-01 • 1080p • 30 FPS</div>
+              <div className="scene-camera-tag">CAMERA-01 • 4K • 30 FPS</div>
             </div>
           </div>
         )}
@@ -230,26 +251,26 @@ export default function VideoPanel({
           </div>
         )}
 
-        {/* Responsive Bounding Box Overlay Layer */}
+        {/* Responsive Bounding Box Overlay Layer (Rendered only if video element not showing baked overlay) */}
         <div className="bbox-overlay-layer">
-          {objects.map((obj) => {
+          {currentFrameObjects.map((obj, idx) => {
             const isHighlighted =
-              (isPickUpActive && obj.id.includes('Laptop')) ||
+              (isPickUpActive && obj.id.includes('laptop')) ||
               (selectedEvent?.subject === obj.id) ||
               (selectedEvent?.object === obj.id);
 
             const norm = obj.normalized || {
-              left: (obj.bbox?.[0] / 800) * 100 || 20,
-              top: (obj.bbox?.[1] / 480) * 100 || 20,
-              width: (obj.bbox?.[2] / 800) * 100 || 25,
-              height: (obj.bbox?.[3] / 480) * 100 || 30
+              left: (obj.bbox?.[0] / 3840) * 100 || 20,
+              top: (obj.bbox?.[1] / 2160) * 100 || 20,
+              width: (obj.bbox?.[2] / 3840) * 100 || 25,
+              height: (obj.bbox?.[3] / 2160) * 100 || 30
             };
 
             const boxColor = obj.color || '#2563eb';
 
             return (
               <div
-                key={obj.id}
+                key={`${obj.id}-${idx}`}
                 className={`bounding-box-item ${isHighlighted ? 'highlighted' : ''}`}
                 style={{
                   left: `${norm.left}%`,
@@ -278,7 +299,7 @@ export default function VideoPanel({
           })}
         </div>
 
-        {/* Center overlay play button (when paused or demo active) */}
+        {/* Center overlay play button (when paused) */}
         {!isPlaying && (
           <div className="video-center-placeholder">
             <button
@@ -293,10 +314,10 @@ export default function VideoPanel({
             </button>
             <div className="demo-video-tag">
               <span className="demo-title">
-                {activeVideoSrc ? "Local Video Stream" : "Demo Video Stream"}
+                {activeVideoSrc && !hasVideoError ? "Annotated Video Stream" : "Demo Video Stream"}
               </span>
               <span className="demo-subtitle">
-                {isMockMode ? "Demo Objects (Mock Data)" : "Real-Time Detection Overlay"}
+                {isMockMode ? "Demo Mode (Mock Data)" : "Real-Time Detection & Tracking Active"}
               </span>
             </div>
           </div>
@@ -308,7 +329,7 @@ export default function VideoPanel({
             <input
               type="range"
               min="0"
-              max={duration || 10}
+              max={duration || 24}
               step="0.05"
               value={currentTime}
               onChange={handleScrubberChange}
@@ -346,18 +367,18 @@ export default function VideoPanel({
 
             <div className="controls-right-group">
               <span className="frame-counter">Frame {currentFrameEstimate}</span>
-              <span className="fps-indicator">• 30 FPS • 1080p</span>
+              <span className="fps-indicator">• 30 FPS • 4K</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Object Legend below video */}
+      {/* Object Legend below video (Deduplicated Unique Entities) */}
       <div className="detected-objects-summary">
         <div className="legend-title-badge">
-          {isMockMode ? "Demo Objects" : "Tracked Objects"}:
+          {isMockMode ? "Demo Entities" : "Tracked Entities"}:
         </div>
-        {objects.map((obj) => (
+        {uniqueTrackedEntities.map((obj) => (
           <div
             key={obj.id}
             className={`object-chip ${
@@ -378,3 +399,4 @@ export default function VideoPanel({
     </div>
   );
 }
+
