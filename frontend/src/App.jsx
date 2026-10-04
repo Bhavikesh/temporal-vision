@@ -21,15 +21,15 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [backendStatus, setBackendStatus] = useState('connecting'); // 'connecting' | 'connected_mock' | 'connected_live' | 'offline'
   const [apiError, setApiError] = useState(null);
-  const [useMockBackend, setUseMockBackend] = useState(true);
+  const [useMockBackend, setUseMockBackend] = useState(false);
 
   // Fetch results from backend API
-  const fetchBackendData = useCallback(async (mockParam = true) => {
+  const fetchBackendData = useCallback(async (mockParam = false) => {
     setIsLoading(true);
     setApiError(null);
 
     try {
-      // Call GET http://localhost:8000/results?mock=true
+      // Call GET http://localhost:8000/results?mock=false
       const result = await getResults(mockParam);
 
       // Successfully connected to backend

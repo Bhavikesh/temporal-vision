@@ -27,7 +27,7 @@ class PipelineService:
         self,
         perception_json_path: Optional[Union[str, Path]] = None,
         video_path: Optional[str] = None,
-        mode: str = "mock",
+        mode: str = "real",
     ) -> ExplanationOutput:
         """
         Execute temporal reasoning on a perception output JSON file.
@@ -39,15 +39,15 @@ class PipelineService:
         video_path : Optional[str]
             Optional path or name of source video.
         mode : str
-            Execution mode ('mock'). Currently 'mock' uses pre-computed JSON.
+            Execution mode ('real' | 'live' | 'mock').
 
         Returns
         -------
         ExplanationOutput
             Deterministic temporal events, evidence, and natural language explanation.
         """
-        if mode != "mock":
-            raise ValueError(f"Unsupported pipeline mode: '{mode}'. Only 'mock' is supported in Task 1.")
+        if mode not in ("mock", "real", "live"):
+            raise ValueError(f"Unsupported pipeline mode: '{mode}'. Must be 'real', 'live', or 'mock'.")
 
         path = Path(perception_json_path) if perception_json_path else self.default_perception_json
 
@@ -59,3 +59,4 @@ class PipelineService:
             json_path=path,
             video_path=video_path or str(path),
         )
+

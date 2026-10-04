@@ -27,7 +27,7 @@ _DEFAULT_PERCEPTION_JSON = _DEFAULT_OUTPUT_DIR / "perception_output.json"
 
 
 class AnalyzeRequest(BaseModel):
-    mode: str = Field(default="mock", description="Execution mode ('mock')")
+    mode: str = Field(default="real", description="Execution mode ('real', 'live', or 'mock')")
     perception_json: Optional[str] = Field(
         default=None,
         description="Path to perception_output.json (relative to workspace or absolute)"
@@ -78,7 +78,7 @@ def create_app(service: Optional[PipelineService] = None) -> FastAPI:
 
     # 4. Results Endpoint (Used directly by Frontend)
     @app.get("/results", tags=["Reasoning"])
-    async def get_results(mock: bool = True) -> Dict[str, Any]:
+    async def get_results(mock: bool = False) -> Dict[str, Any]:
         """
         Unified endpoint serving real perception detections, temporal reasoning events,
         and narrative explanation.
@@ -86,7 +86,7 @@ def create_app(service: Optional[PipelineService] = None) -> FastAPI:
         try:
             explanation_output = pipeline_service.run_pipeline(
                 perception_json_path=_DEFAULT_PERCEPTION_JSON,
-                mode="mock",
+                mode="mock" if mock else "real",
             )
             output_dict = explanation_output.to_dict()
 
@@ -122,10 +122,10 @@ def create_app(service: Optional[PipelineService] = None) -> FastAPI:
     ) -> Dict[str, Any]:
         req = request or AnalyzeRequest()
 
-        if req.mode != "mock":
+        if req.mode not in ("real", "live", "mock"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported mode: '{req.mode}'. Only 'mock' is supported in Task 1.",
+                detail=f"Unsupported mode: '{req.mode}'. Must be 'real', 'live', or 'mock'.",
             )
 
         # Resolve perception json path
