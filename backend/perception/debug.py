@@ -38,12 +38,22 @@ def render_frame(
     perception_frame: PerceptionFrame,
     show_mask: bool = True,
     output_dir: Optional[Path] = None,
+    artifact_dir: Optional[Path] = None,
 ) -> np.ndarray:
     """
     Draw bounding boxes, masks, object IDs, and confidence on a frame.
 
+    Parameters
+    ----------
+    frame_bgr        : BGR numpy array to annotate
+    perception_frame : frame data with object list
+    show_mask        : whether to overlay masks
+    output_dir       : if set, saves the annotated JPEG here (debug_frames/)
+    artifact_dir     : root used to resolve relative mask_path values
+                       (= the pipeline output_dir that contains masks/).
+                       If None, mask_path is used as-is.
+
     Returns the annotated BGR numpy array.
-    If output_dir is given, saves the frame as a JPEG.
     """
     vis = frame_bgr.copy()
 
@@ -55,15 +65,20 @@ def render_frame(
         # Bounding box
         cv2.rectangle(vis, (x1, y1), (x2, y2), colour, 2)
 
-        # Overlay mask if available
+        # Overlay mask — resolve mask_path relative to artifact_dir when provided
         if show_mask and obj.mask_path:
             try:
-                mask_bgr = cv2.imread(obj.mask_path, cv2.IMREAD_GRAYSCALE)
-                if mask_bgr is not None:
+                mask_abs = (
+                    str(Path(artifact_dir) / obj.mask_path)
+                    if artifact_dir is not None
+                    else obj.mask_path
+                )
+                mask_gray = cv2.imread(mask_abs, cv2.IMREAD_GRAYSCALE)
+                if mask_gray is not None:
                     h, w = vis.shape[:2]
-                    if mask_bgr.shape != (h, w):
-                        mask_bgr = cv2.resize(mask_bgr, (w, h))
-                    mask_bool = mask_bgr > 127
+                    if mask_gray.shape != (h, w):
+                        mask_gray = cv2.resize(mask_gray, (w, h))
+                    mask_bool = mask_gray > 127
                     overlay = vis.copy()
                     overlay[mask_bool] = [c // 2 + v // 2
                                           for c, v in zip(colour, vis[mask_bool].mean(axis=0)[:3])]
