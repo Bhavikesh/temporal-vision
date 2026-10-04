@@ -137,23 +137,39 @@ class SAM2Tracker:
         inference_state = self._predictor.init_state(video_path=str(frame_dir))
         self._predictor.reset_state(inference_state)
 
+        sorted_indices = sorted(frame_indices)
+        # Explicit mapping: SAM sequence index -> original video frame index
+        # When frame_dir has files named 00000.jpg, 00003.jpg, ..., SAM loads them in sorted
+        # order and assigns contiguous sequence indices 0, 1, 2, ..., len(sorted_indices)-1.
+        sam_to_orig: Dict[int, int] = {
+            sam_seq_idx: orig_idx for sam_seq_idx, orig_idx in enumerate(sorted_indices)
+        }
+        orig_to_sam: Dict[int, int] = {
+            orig_idx: sam_seq_idx for sam_seq_idx, orig_idx in enumerate(sorted_indices)
+        }
+
+        # SAM sequence index for the seed frame
+        sam_seed_idx = orig_to_sam.get(seed_frame_idx, 0)
+
         # Add bounding-box prompts for each detected object on the seed frame
         for sam_id, det in id_map.items():
             box = np.array(det.bbox, dtype=np.float32)  # [x1,y1,x2,y2]
             _, obj_ids, mask_logits = self._predictor.add_new_points_or_box(
                 inference_state=inference_state,
-                frame_idx=seed_frame_idx,
+                frame_idx=sam_seed_idx,
                 obj_id=sam_id,
                 box=box,
             )
-            log.debug("Initialised obj_id=%d (%s) on frame %d", sam_id, det.id, seed_frame_idx)
+            log.debug("Initialised obj_id=%d (%s) on seed frame %d (sam_seq_idx=%d)",
+                      sam_id, det.id, seed_frame_idx, sam_seed_idx)
 
         # Propagate through entire video
-        frame_results: Dict[int, List[DetectedObject]] = {idx: [] for idx in frame_indices}
+        frame_results: Dict[int, List[DetectedObject]] = {idx: [] for idx in sorted_indices}
 
-        for frame_idx, obj_ids, mask_logits in self._predictor.propagate_in_video(inference_state):
-            if frame_idx not in frame_results:
-                continue  # not a sampled frame
+        for sam_frame_idx, obj_ids, mask_logits in self._predictor.propagate_in_video(inference_state):
+            orig_frame_idx = sam_to_orig.get(sam_frame_idx)
+            if orig_frame_idx is None:
+                continue
 
             masks = (mask_logits > 0.0).cpu().numpy()  # shape: (N, 1, H, W)
 
@@ -166,7 +182,8 @@ class SAM2Tracker:
 
                 if not mask.any():
                     # Object not visible in this frame
-                    log.debug("Object %s absent in frame %d", ref_det.id, frame_idx)
+                    log.debug("Object %s absent in frame %d (orig_frame=%d)",
+                              ref_det.id, sam_frame_idx, orig_frame_idx)
                     continue
 
                 # Compute bbox and centroid from mask
@@ -175,16 +192,16 @@ class SAM2Tracker:
                 cx = int((x1 + x2) / 2)
                 cy = int((y1 + y2) / 2)
 
-                # Save mask PNG
-                frame_mask_dir = output_mask_dir / f"frame_{frame_idx:05d}"
+                # Save mask PNG using original frame index in filename/path
+                frame_mask_dir = output_mask_dir / f"frame_{orig_frame_idx:05d}"
                 frame_mask_dir.mkdir(parents=True, exist_ok=True)
-                mask_rel = f"masks/frame_{frame_idx:05d}/{ref_det.id}.png"
+                mask_rel = f"masks/frame_{orig_frame_idx:05d}/{ref_det.id}.png"
                 mask_abs = output_mask_dir.parent / mask_rel
                 mask_abs.parent.mkdir(parents=True, exist_ok=True)
                 mask_img = (mask * 255).astype(np.uint8)
                 Image.fromarray(mask_img).save(str(mask_abs))
 
-                frame_results[frame_idx].append(DetectedObject(
+                frame_results[orig_frame_idx].append(DetectedObject(
                     id=ref_det.id,
                     cls=ref_det.cls,
                     confidence=ref_det.confidence,  # carry detector confidence
@@ -195,7 +212,7 @@ class SAM2Tracker:
 
         # Build PerceptionFrame list
         perception_frames = []
-        for idx in sorted(frame_indices):
+        for idx in sorted_indices:
             perception_frames.append(PerceptionFrame(
                 frame_index=idx,
                 timestamp=round(idx / fps, 4),
