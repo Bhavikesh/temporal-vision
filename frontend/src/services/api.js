@@ -72,14 +72,14 @@ export const getResults = async (dataset = false) => {
     ? normalizeObjectList(rawObjects, 3840, 2160, isMock)
     : [];
 
-  // Normalize events to ensure id, type, and timestamp format
+  // Normalize events to ensure id, type, and clean standard mm:ss timestamp format
   const normalizedEvents = (data.events || []).map((evt, idx) => {
     const eventType = evt.event || evt.type || 'APPROACH';
     const timestampSec = typeof evt.timestamp === 'number' ? evt.timestamp : parseFloat(evt.timestamp) || 0;
     const mins = Math.floor(timestampSec / 60);
-    const secs = (timestampSec % 60).toFixed(1);
-    const paddedSecs = parseFloat(secs) < 10 ? `0${secs}` : secs;
-    const timeFormatted = `${String(mins).padStart(2, '0')}:${paddedSecs}`;
+    const secs = Math.round(timestampSec % 60);
+    const timeFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
 
     return {
       id: evt.id || `evt-${idx + 1}`,
