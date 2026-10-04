@@ -77,8 +77,9 @@ export const getResults = async (dataset = false) => {
     const eventType = evt.event || evt.type || 'APPROACH';
     const timestampSec = typeof evt.timestamp === 'number' ? evt.timestamp : parseFloat(evt.timestamp) || 0;
     const mins = Math.floor(timestampSec / 60);
-    const secs = Math.floor(timestampSec % 60);
-    const timeFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    const secs = (timestampSec % 60).toFixed(1);
+    const paddedSecs = parseFloat(secs) < 10 ? `0${secs}` : secs;
+    const timeFormatted = `${String(mins).padStart(2, '0')}:${paddedSecs}`;
 
     return {
       id: evt.id || `evt-${idx + 1}`,
@@ -88,6 +89,7 @@ export const getResults = async (dataset = false) => {
       timestampSeconds: timestampSec,
       subject: evt.subject,
       object: evt.object,
+
       confidence: evt.confidence ?? 0.9,
       evidence: evt.evidence || {},
       description: evt.description || `${evt.subject} ${eventType.toLowerCase()} ${evt.object || ''}`,
