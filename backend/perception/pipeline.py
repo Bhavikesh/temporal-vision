@@ -145,7 +145,8 @@ class PerceptionPipeline:
                     bgr = cv2.imread(str(jpg))
                     if bgr is None:
                         continue
-                    render_frame(bgr, pframe, show_mask=True, output_dir=debug_dir)
+                    render_frame(bgr, pframe, show_mask=True,
+                                 output_dir=debug_dir, artifact_dir=out_dir)
 
                 debug_video = out_dir / "debug_video.mp4"
                 write_debug_video(debug_dir, debug_video, fps=fps / cfg.frame_stride)
