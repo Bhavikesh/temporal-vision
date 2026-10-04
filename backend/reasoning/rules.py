@@ -40,10 +40,18 @@ class PairStage(str, Enum):
 class EventRuleConfig:
     """
     Configurable thresholds and parameters for temporal event rules.
+    Supports active subject filtering (Part B) and resolution-aware scaling (Part A).
     """
 
-    # Candidate subject classes (None allows any active class)
-    candidate_subject_classes: Optional[Set[str]] = None
+    # Candidate subject classes (Part B: restricted to active agents by default)
+    candidate_subject_classes: Optional[Set[str]] = field(
+        default_factory=lambda: {"person"}
+    )
+
+    # Resolution scaling support (Part A)
+    scale_factor: float = 1.0
+    frame_resolution: Optional[Tuple[int, int]] = None
+    reference_resolution: Tuple[int, int] = (1280, 720)
 
     # APPROACH parameters
     approach_min_frames: int = 1
@@ -54,7 +62,7 @@ class EventRuleConfig:
     reach_proximity_threshold_m: float = 1.4
 
     # PICK_UP parameters
-    pickup_contact_proximity_px: float = 130.0
+    pickup_contact_proximity_px: float = 140.0
     pickup_contact_proximity_m: float = 1.0
     pickup_stationary_speed_threshold_px_s: float = 6.0
     pickup_min_object_speed_px_s: float = 8.0
@@ -63,11 +71,54 @@ class EventRuleConfig:
     pickup_max_dist_drift_px: float = 30.0
 
     # CARRY parameters
-    carry_proximity_px: float = 130.0
+    carry_proximity_px: float = 140.0
     carry_proximity_m: float = 1.0
     carry_min_speed_px_s: float = 8.0
     carry_min_sync_cosine: float = 0.65
     carry_max_dist_drift_px: float = 35.0
+
+    @classmethod
+    def for_resolution(
+        cls,
+        width: int,
+        height: int,
+        reference_resolution: Tuple[int, int] = (1280, 720),
+        **kwargs: Any,
+    ) -> EventRuleConfig:
+        """Create an EventRuleConfig scaled for a specific video resolution."""
+        scale = math.hypot(width, height) / math.hypot(
+            reference_resolution[0], reference_resolution[1]
+        )
+        return cls(
+            scale_factor=scale,
+            frame_resolution=(width, height),
+            reference_resolution=reference_resolution,
+            **kwargs,
+        )
+
+    @property
+    def effective_approach_max_start_distance_px(self) -> float:
+        return self.approach_max_start_distance_px * self.scale_factor
+
+    @property
+    def effective_reach_proximity_threshold_px(self) -> float:
+        return self.reach_proximity_threshold_px * self.scale_factor
+
+    @property
+    def effective_pickup_contact_proximity_px(self) -> float:
+        return self.pickup_contact_proximity_px * self.scale_factor
+
+    @property
+    def effective_carry_proximity_px(self) -> float:
+        return self.carry_proximity_px * self.scale_factor
+
+    @property
+    def effective_pickup_max_dist_drift_px(self) -> float:
+        return self.pickup_max_dist_drift_px * self.scale_factor
+
+    @property
+    def effective_carry_max_dist_drift_px(self) -> float:
+        return self.carry_max_dist_drift_px * self.scale_factor
 
 
 @dataclass
@@ -235,7 +286,7 @@ class TemporalEventEngine:
                 or self.rel_calc.check_moving_toward(subj, obj)
             )
 
-            if is_moving_toward and dist_px <= self.config.approach_max_start_distance_px:
+            if is_moving_toward and dist_px <= self.config.effective_approach_max_start_distance_px:
                 tracker.consecutive_approach_frames += 1
                 if tracker.consecutive_approach_frames >= self.config.approach_min_frames:
                     if EventType.APPROACH not in tracker.events_emitted:
@@ -276,7 +327,7 @@ class TemporalEventEngine:
             is_near = (
                 RelationType.NEAR in pair_rels
                 or self.rel_calc.check_near(subj, obj, dist_m)
-                or dist_px <= self.config.reach_proximity_threshold_px
+                or dist_px <= self.config.effective_reach_proximity_threshold_px
             )
 
             if is_near:
@@ -314,7 +365,7 @@ class TemporalEventEngine:
         # 3. PICK_UP Transition: REACHED -> PICKED_UP
         # --------------------------------------------------------------
         elif tracker.stage == PairStage.REACHED:
-            close_contact = dist_px <= self.config.pickup_contact_proximity_px
+            close_contact = dist_px <= self.config.effective_pickup_contact_proximity_px
             if dist_m is not None:
                 close_contact = close_contact and (dist_m <= self.config.pickup_contact_proximity_m)
 
@@ -330,7 +381,7 @@ class TemporalEventEngine:
             sync_motion = False
             if obj_now_moving and subj_now_moving:
                 sync_motion = self._check_motion_synchronization(
-                    subj, obj, self.config.pickup_min_sync_cosine, self.config.pickup_max_dist_drift_px
+                    subj, obj, self.config.pickup_min_sync_cosine, self.config.effective_pickup_max_dist_drift_px
                 )
 
             if (
@@ -375,7 +426,7 @@ class TemporalEventEngine:
         # --------------------------------------------------------------
         elif tracker.stage == PairStage.PICKED_UP:
             if tracker.pickup_frame_index is not None and frame_idx > tracker.pickup_frame_index:
-                close_contact = dist_px <= self.config.carry_proximity_px
+                close_contact = dist_px <= self.config.effective_carry_proximity_px
                 if dist_m is not None:
                     close_contact = close_contact and (dist_m <= self.config.carry_proximity_m)
 
@@ -387,7 +438,7 @@ class TemporalEventEngine:
                 sync_motion = False
                 if both_moving:
                     sync_motion = self._check_motion_synchronization(
-                        subj, obj, self.config.carry_min_sync_cosine, self.config.carry_max_dist_drift_px
+                        subj, obj, self.config.carry_min_sync_cosine, self.config.effective_carry_max_dist_drift_px
                     )
 
                 if close_contact and both_moving and sync_motion:

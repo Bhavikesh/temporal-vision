@@ -55,6 +55,54 @@ class RelationConfig:
     holding_min_sync_cosine: float = 0.65
     holding_max_dist_drift_px: float = 30.0
 
+    # Resolution scaling support (Part A)
+    scale_factor: float = 1.0
+    frame_resolution: Optional[Tuple[int, int]] = None
+    reference_resolution: Tuple[int, int] = (1280, 720)
+
+    @classmethod
+    def for_resolution(
+        cls,
+        width: int,
+        height: int,
+        reference_resolution: Tuple[int, int] = (1280, 720),
+        **kwargs: Any,
+    ) -> RelationConfig:
+        """Create a RelationConfig scaled for a specific video resolution."""
+        scale = math.hypot(width, height) / math.hypot(
+            reference_resolution[0], reference_resolution[1]
+        )
+        return cls(
+            scale_factor=scale,
+            frame_resolution=(width, height),
+            reference_resolution=reference_resolution,
+            **kwargs,
+        )
+
+    @property
+    def effective_proximity_threshold_px(self) -> float:
+        return self.proximity_threshold_px * self.scale_factor
+
+    @property
+    def effective_holding_proximity_px(self) -> float:
+        return self.holding_proximity_px * self.scale_factor
+
+    @property
+    def effective_holding_max_dist_drift_px(self) -> float:
+        return self.holding_max_dist_drift_px * self.scale_factor
+
+    @property
+    def effective_min_motion_distance_px(self) -> float:
+        return self.min_motion_distance_px * self.scale_factor
+
+    @property
+    def effective_on_horizontal_padding_px(self) -> float:
+        return self.on_horizontal_padding_px * self.scale_factor
+
+    @property
+    def effective_on_vertical_tolerance_px(self) -> float:
+        return self.on_vertical_tolerance_px * self.scale_factor
+
 
 class RelationCalculator:
     """
@@ -210,7 +258,7 @@ class RelationCalculator:
         dist_px = math.hypot(dx, dy)
 
         # 2D proximity boundary
-        if dist_px > self.config.proximity_threshold_px:
+        if dist_px > self.config.effective_proximity_threshold_px:
             return False
 
         # If 3D metric depth is available, enforce depth consistency
@@ -252,13 +300,13 @@ class RelationCalculator:
             return False
 
         # Horizontal alignment: subject centroid must be within object horizontal span
-        pad = self.config.on_horizontal_padding_px
+        pad = self.config.effective_on_horizontal_padding_px
         if scx < (ox1 - pad) or scx > (ox2 + pad):
             return False
 
         # Vertical resting alignment: subject bottom edge (sy2) should be near
         # the upper region of the surface (oy1), not far above it or completely submerged
-        v_tol = self.config.on_vertical_tolerance_px
+        v_tol = self.config.effective_on_vertical_tolerance_px
         vertical_contact = (sy2 >= oy1 - v_tol) and (sy2 <= oy2) and (sy1 <= oy1 + v_tol)
         if not vertical_contact:
             return False
@@ -393,7 +441,7 @@ class RelationCalculator:
         dy = float(subject.current_centroid[1] - obj.current_centroid[1])
         dist_px = math.hypot(dx, dy)
 
-        if dist_px > self.config.holding_proximity_px:
+        if dist_px > self.config.effective_holding_proximity_px:
             return False
         if dist_m is not None and dist_m > self.config.holding_proximity_m:
             return False
@@ -426,7 +474,7 @@ class RelationCalculator:
         prev_dist_px = math.hypot(prev_dx, prev_dy)
 
         dist_drift = abs(dist_px - prev_dist_px)
-        if dist_drift > self.config.holding_max_dist_drift_px:
+        if dist_drift > self.config.effective_holding_max_dist_drift_px:
             return False
 
         return True

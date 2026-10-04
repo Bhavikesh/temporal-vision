@@ -27,6 +27,10 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+from backend.reasoning.relations import (
+    RelationCalculator,
+    RelationConfig,
+)
 from backend.reasoning.rules import (
     EventRuleConfig,
     PairStage,
@@ -371,6 +375,81 @@ class TestTemporalEventEngine(unittest.TestCase):
         pickup_events = [e for e in events if e.event == EventType.PICK_UP]
         self.assertEqual(len(carry_events), 1)
         self.assertEqual(len(pickup_events), 1)
+
+    def test_scenario_11_active_subject_filtering(self):
+        """
+        Verify that passive objects (laptop, table) cannot become subjects of
+        human-object action events (APPROACH, REACH, PICK_UP, CARRY).
+        """
+        frames = [
+            {"frame_index": 0, "timestamp": 0.0, "objects": [
+                {"id": "table_01", "class": "table", "centroid": [500, 500]},
+                {"id": "laptop_01", "class": "laptop", "centroid": [100, 100]},
+            ]},
+            {"frame_index": 5, "timestamp": 0.5, "objects": [
+                {"id": "table_01", "class": "table", "centroid": [500, 500]},
+                # Laptop shifts toward table
+                {"id": "laptop_01", "class": "laptop", "centroid": [200, 200]},
+            ]},
+            {"frame_index": 10, "timestamp": 1.0, "objects": [
+                {"id": "table_01", "class": "table", "centroid": [500, 500]},
+                # Laptop reaches table
+                {"id": "laptop_01", "class": "laptop", "centroid": [450, 450]},
+            ]},
+        ]
+        events = self.engine.process_sequence(frames)
+        # Because neither is a person, no action events should be emitted
+        self.assertEqual(len(events), 0)
+
+    def test_scenario_12_4k_resolution_scaling(self):
+        """
+        Verify that 4K coordinates (3840x2160) with person-laptop centroid distance
+        around 300-350px cleanly trigger REACH, PICK_UP, and CARRY when resolution scaling is used.
+        """
+        cfg_4k = EventRuleConfig.for_resolution(3840, 2160)
+        rel_cfg_4k = RelationConfig.for_resolution(3840, 2160)
+        rel_calc = RelationCalculator(rel_cfg_4k)
+        engine_4k = TemporalEventEngine(cfg_4k, relation_calculator=rel_calc)
+
+        frames = [
+            # Frame 0: Approach start (distance 700px)
+            {"frame_index": 0, "timestamp": 0.0, "objects": [
+                {"id": "p1", "class": "person", "centroid": [1000, 1000]},
+                {"id": "l1", "class": "laptop", "centroid": [1700, 1000]},
+            ]},
+            # Frame 1: Approach step (distance 500px) -> APPROACH
+            {"frame_index": 5, "timestamp": 0.5, "objects": [
+                {"id": "p1", "class": "person", "centroid": [1200, 1000]},
+                {"id": "l1", "class": "laptop", "centroid": [1700, 1000]},
+            ]},
+            # Frame 2: Contact reach (distance 330px <= 420px threshold) -> REACH
+            {"frame_index": 10, "timestamp": 1.0, "objects": [
+                {"id": "p1", "class": "person", "centroid": [1370, 1000]},
+                {"id": "l1", "class": "laptop", "centroid": [1700, 1000]},
+            ]},
+            # Frame 3: Both move together in synchronized velocity -> PICK_UP
+            {"frame_index": 15, "timestamp": 1.5, "objects": [
+                {"id": "p1", "class": "person", "centroid": [1470, 1000]},
+                {"id": "l1", "class": "laptop", "centroid": [1800, 1000]},
+            ]},
+            # Frame 4: Sustained synchronized motion -> CARRY
+            {"frame_index": 20, "timestamp": 2.0, "objects": [
+                {"id": "p1", "class": "person", "centroid": [1570, 1000]},
+                {"id": "l1", "class": "laptop", "centroid": [1900, 1000]},
+            ]},
+        ]
+        events = engine_4k.process_sequence(frames)
+        event_types = [e.event for e in events]
+        self.assertEqual(event_types, [EventType.APPROACH, EventType.REACH, EventType.PICK_UP, EventType.CARRY])
+
+    def test_scenario_13_deterministic_resolution_aware_proximity(self):
+        """Verify that scaling scales thresholds deterministically and preserves manual overrides."""
+        cfg = EventRuleConfig.for_resolution(3840, 2160, pickup_contact_proximity_px=500.0)
+        self.assertAlmostEqual(cfg.scale_factor, 3.0, places=2)
+        # Manually specified pickup_contact_proximity_px is preserved and scaled
+        self.assertAlmostEqual(cfg.effective_pickup_contact_proximity_px, 1500.0, places=1)
+        # Default reach threshold scales by scale_factor (160 * 3.0 = 480)
+        self.assertAlmostEqual(cfg.effective_reach_proximity_threshold_px, 480.0, places=1)
 
 
 if __name__ == "__main__":

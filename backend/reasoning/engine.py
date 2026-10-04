@@ -28,8 +28,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from .evidence import EvidenceCollector
 from .explainer import EventExplainer
@@ -51,24 +52,49 @@ class TemporalReasoningEngine:
         event_config: Optional[EventRuleConfig] = None,
         relation_config: Optional[RelationConfig] = None,
         max_history_per_object: Optional[int] = 100,
+        frame_resolution: Optional[Tuple[int, int]] = None,
     ) -> None:
         self.adapter = PerceptionInputAdapter()
         self.state_manager = ObjectStateManager(max_history_per_object=max_history_per_object)
+
+        if frame_resolution is not None:
+            relation_config = relation_config or RelationConfig.for_resolution(*frame_resolution)
+            event_config = event_config or EventRuleConfig.for_resolution(*frame_resolution)
+
         self.rel_calc = RelationCalculator(relation_config)
         self.event_engine = TemporalEventEngine(event_config, relation_calculator=self.rel_calc)
         self.evidence_collector = EvidenceCollector(relation_calculator=self.rel_calc)
         self.explainer = EventExplainer()
+        self._user_frame_resolution = frame_resolution
+        self._auto_scaled = False
+
+    def _apply_resolution(self, resolution: Tuple[int, int]) -> None:
+        width, height = resolution
+        scale = math.hypot(width, height) / math.hypot(1280, 720)
+        self.rel_calc.config.scale_factor = scale
+        self.rel_calc.config.frame_resolution = resolution
+        self.event_engine.config.scale_factor = scale
+        self.event_engine.config.frame_resolution = resolution
 
     def reset(self) -> None:
         """Reset internal tracking and event state across all components."""
         self.state_manager.reset()
         self.event_engine.reset()
+        if self._user_frame_resolution is not None:
+            self._apply_resolution(self._user_frame_resolution)
+        elif self._auto_scaled:
+            self.rel_calc.config.scale_factor = 1.0
+            self.rel_calc.config.frame_resolution = None
+            self.event_engine.config.scale_factor = 1.0
+            self.event_engine.config.frame_resolution = None
+            self._auto_scaled = False
 
     def process_frames(
         self,
         frames: Union[Sequence[Dict[str, Any]], str, Path, Sequence[ParsedFrame]],
         video_path: Optional[str] = None,
         processed_at: Optional[str] = None,
+        frame_resolution: Optional[Tuple[int, int]] = None,
     ) -> ExplanationOutput:
         """
         Process a sequence of perception frames, sort chronologically, execute the
@@ -82,6 +108,8 @@ class TemporalReasoningEngine:
             Path to the source video (defaults to 'input/demo.mp4' or metadata).
         processed_at : Optional[str]
             ISO 8601 processing timestamp string (auto-generated if None).
+        frame_resolution : Optional[Tuple[int, int]]
+            Optional (width, height) of the video frames to scale pixel thresholds.
 
         Returns
         -------
@@ -104,6 +132,28 @@ class TemporalReasoningEngine:
 
         # 3. Reset orchestrator state for fresh sequence run
         self.reset()
+
+        # Apply explicit or auto-detected resolution scaling
+        eff_res = frame_resolution or self._user_frame_resolution
+        if eff_res is not None:
+            self._apply_resolution(eff_res)
+            self._auto_scaled = (frame_resolution is not None and frame_resolution != self._user_frame_resolution)
+        elif (
+            self.event_engine.config.frame_resolution is None
+            and self.event_engine.config.scale_factor == 1.0
+        ):
+            max_x = max((o.bbox[2] for f in parsed_frames for o in f.objects), default=0)
+            max_y = max((o.bbox[3] for f in parsed_frames for o in f.objects), default=0)
+            if max_x > 2560 or max_y > 1440:
+                self._apply_resolution((3840, 2160))
+                self._auto_scaled = True
+            elif max_x > 1920 or max_y > 1080:
+                self._apply_resolution((2560, 1440))
+                self._auto_scaled = True
+            elif max_x > 1280 or max_y > 720:
+                self._apply_resolution((1920, 1080))
+                self._auto_scaled = True
+
         all_events: List[Event] = []
 
         # 4. Pipeline execution across frames

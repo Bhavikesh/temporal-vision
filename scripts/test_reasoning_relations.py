@@ -321,6 +321,53 @@ class TestRelationCalculator(unittest.TestCase):
         # Chair is far away from everything
         self.assertFalse(any(r.subject_id == "chair_01" or r.object_id == "chair_01" for r in relations))
 
+    def test_13_resolution_aware_relation_scaling(self):
+        """Test that RelationConfig.for_resolution scales proximity thresholds accurately for 4K."""
+        cfg_4k = RelationConfig.for_resolution(3840, 2160)
+        calc_4k = RelationCalculator(cfg_4k)
+        # Scale factor should be 3.0 relative to 1280x720
+        self.assertAlmostEqual(cfg_4k.scale_factor, 3.0, places=2)
+        # Default proximity_threshold_px is 150.0 -> effective is 450.0
+        self.assertAlmostEqual(cfg_4k.effective_proximity_threshold_px, 450.0, places=1)
+
+        f0 = {
+            "frame_index": 0,
+            "timestamp": 0.0,
+            "objects": [
+                {"id": "p1", "class": "person", "centroid": [1000, 1000]},
+                # 330 px apart: should be near in 4K (effective threshold 450px)
+                {"id": "l1", "class": "laptop", "centroid": [1330, 1000]},
+            ],
+        }
+        self.mgr.update(f0)
+        # Default calc (scale=1.0, threshold=150px) fails
+        self.assertFalse(self.calc.check_near(self.mgr.get_state("p1"), self.mgr.get_state("l1")))
+        # 4K calc passes
+        self.assertTrue(calc_4k.check_near(self.mgr.get_state("p1"), self.mgr.get_state("l1")))
+
+    def test_14_resolution_aware_on_relation_scaling(self):
+        """Test that RelationConfig.for_resolution scales on-support padding & tolerance for 4K."""
+        cfg_4k = RelationConfig.for_resolution(3840, 2160)
+        calc_4k = RelationCalculator(cfg_4k)
+        # Vertical tolerance 50px * 3.0 = 150px
+        self.assertAlmostEqual(cfg_4k.effective_on_vertical_tolerance_px, 150.0, places=1)
+
+        # 4K frame: laptop resting on table with vertical boundary offset 80px (within 150px, but > 50px)
+        f0 = {
+            "frame_index": 0,
+            "timestamp": 0.0,
+            "objects": [
+                {"id": "laptop_01", "class": "laptop", "bbox": [1500, 800, 2100, 1100], "centroid": [1800, 950]},
+                {"id": "table_01", "class": "table", "bbox": [1000, 1180, 2600, 2000], "centroid": [1800, 1590]},
+            ],
+        }
+        mgr = ObjectStateManager()
+        mgr.update(f0)
+        # sy2 = 1100, oy1 = 1180 -> offset is 80px (exceeds default 50px tolerance)
+        self.assertFalse(self.calc.check_on(mgr.get_state("laptop_01"), mgr.get_state("table_01")))
+        # With 4K scaling, 80px <= 150px tolerance -> check_on passes
+        self.assertTrue(calc_4k.check_on(mgr.get_state("laptop_01"), mgr.get_state("table_01")))
+
 
 if __name__ == "__main__":
     unittest.main()
