@@ -181,6 +181,12 @@ body {
   font-weight: 600;
 }
 
+.status-pill.offline-pill {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
 .status-dot {
   width: 7px;
   height: 7px;
@@ -188,6 +194,29 @@ body {
   border-radius: 50%;
   display: inline-block;
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+.status-dot.offline-dot {
+  background-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+.header-retry-btn {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #92400e;
+  cursor: pointer;
+  margin-left: 0.25rem;
+  transition: all 0.15s ease;
+}
+
+.header-retry-btn:hover {
+  background: #f59e0b;
+  color: #ffffff;
 }
 
 .mode-badge {
@@ -201,15 +230,106 @@ body {
 }
 
 .mode-badge.mock-mode {
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-  color: #92400e;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
 }
 
 .mode-badge.live-mode {
   background: #ecfeff;
   border: 1px solid #a5f3fc;
   color: #0e7490;
+}
+
+.mode-badge.offline-mode {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+/* --------------------------------------------------------------------------
+   BACKEND OFFLINE BANNER & LOADING STATES
+   -------------------------------------------------------------------------- */
+.backend-offline-banner {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.8125rem;
+  color: #78350f;
+  box-shadow: var(--shadow-sm);
+}
+
+.offline-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.offline-banner-content code {
+  background: rgba(254, 243, 199, 0.8);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.banner-retry-btn {
+  background: #ffffff;
+  border: 1px solid #d97706;
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #b45309;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.banner-retry-btn:hover {
+  background: #d97706;
+  color: #ffffff;
+}
+
+.dashboard-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 380px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 3rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.large-spinner {
+  width: 44px;
+  height: 44px;
+  border-width: 4px;
+  border-top-color: var(--accent-blue);
+  margin-bottom: 1.25rem;
+}
+
+.loading-text {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.35rem;
+}
+
+.loading-subtext {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 /* --------------------------------------------------------------------------
@@ -283,6 +403,14 @@ body {
   font-size: 0.75rem;
   color: var(--text-secondary);
   display: block;
+}
+
+.empty-panel-msg,
+.no-evidence-note {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 0.5rem 0;
 }
 
 /* --------------------------------------------------------------------------

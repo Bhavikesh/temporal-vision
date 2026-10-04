@@ -1,9 +1,34 @@
 import React from 'react';
 
-export default function ExplanationPanel({ selectedEvent }) {
-  const explanationText =
-    selectedEvent?.explanation ||
-    "Person #01 picked up Laptop #02 at 00:05 and carried it away from Table #01.";
+/**
+ * Format explanation object/string into clean string text
+ */
+function extractExplanationText(explanation, selectedEvent) {
+  if (typeof explanation === 'string' && explanation.trim()) {
+    return explanation;
+  }
+  if (explanation && typeof explanation === 'object') {
+    return (
+      explanation.text ||
+      explanation.summary ||
+      explanation.description ||
+      explanation.content ||
+      explanation.narrative ||
+      JSON.stringify(explanation)
+    );
+  }
+  if (selectedEvent?.explanation) {
+    return selectedEvent.explanation;
+  }
+  return "Explanation unavailable.";
+}
+
+export default function ExplanationPanel({ selectedEvent, explanation = null }) {
+  const explanationText = extractExplanationText(explanation, selectedEvent);
+
+  const eventLabel = selectedEvent?.type 
+    ? `${selectedEvent.type.replace('_', ' ')} (${selectedEvent.timestamp || '00:05'})`
+    : 'Temporal Action Sequence';
 
   return (
     <div className="panel explanation-panel-card">
@@ -29,9 +54,9 @@ export default function ExplanationPanel({ selectedEvent }) {
         <div className="quote-mark">“</div>
         <p className="explanation-text">{explanationText}</p>
         <div className="explanation-meta">
-          <span className="meta-tag">Event Reference: <strong>{selectedEvent?.type || "PICK_UP"} ({selectedEvent?.timestamp || "00:05"})</strong></span>
+          <span className="meta-tag">Event Reference: <strong>{eventLabel}</strong></span>
           <span className="meta-divider">•</span>
-          <span className="meta-tag">Grounding: <strong>Verified by 3 Evidence Anchors</strong></span>
+          <span className="meta-tag">Status: <strong>Grounding Verified</strong></span>
         </div>
       </div>
     </div>

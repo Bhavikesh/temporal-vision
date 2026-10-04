@@ -1,6 +1,14 @@
 import React from 'react';
 
-export default function Header({ isMockMode = true, onToggleMode = null }) {
+export default function Header({
+  backendStatus = 'connected_mock',
+  onRetry = null,
+  onToggleMode = null
+}) {
+  const isOffline = backendStatus === 'offline';
+  const isConnectedMock = backendStatus === 'connected_mock';
+  const isConnectedLive = backendStatus === 'connected_live';
+
   return (
     <header className="app-header">
       <div className="header-left">
@@ -50,17 +58,34 @@ export default function Header({ isMockMode = true, onToggleMode = null }) {
       </div>
 
       <div className="header-right">
-        <div className="status-pill">
-          <span className="status-dot"></span>
-          <span className="status-text">Pipeline Active</span>
-        </div>
+        {isOffline ? (
+          <div className="status-pill offline-pill">
+            <span className="status-dot offline-dot"></span>
+            <span className="status-text">Backend Offline</span>
+            {onRetry && (
+              <button className="header-retry-btn" onClick={onRetry} title="Retry backend connection">
+                Retry
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="status-pill">
+            <span className="status-dot"></span>
+            <span className="status-text">Backend Online</span>
+          </div>
+        )}
+
         <div
-          className={`mode-badge ${isMockMode ? 'mock-mode' : 'live-mode'}`}
+          className={`mode-badge ${isOffline ? 'offline-mode' : isConnectedMock ? 'mock-mode' : 'live-mode'}`}
           onClick={onToggleMode}
-          title={onToggleMode ? "Click to switch mode" : undefined}
+          title={onToggleMode ? "Click to toggle backend mock / live query" : undefined}
           style={onToggleMode ? { cursor: 'pointer' } : {}}
         >
-          {isMockMode ? "MOCK DATA MODE" : "LIVE DATA MODE"}
+          {isOffline 
+            ? "Backend Offline — Local Fallback" 
+            : isConnectedMock 
+            ? "Backend Connected — Mock Results" 
+            : "Backend Connected — Live Results"}
         </div>
       </div>
     </header>

@@ -1,10 +1,25 @@
 import React from 'react';
 
 export default function SceneGraph({ selectedEvent }) {
-  const isPickUp = selectedEvent?.type === 'PICK_UP';
-  const isApproach = selectedEvent?.type === 'APPROACH';
-  const isReach = selectedEvent?.type === 'REACH';
-  const isCarry = selectedEvent?.type === 'CARRY';
+  const subjectName = selectedEvent?.subject || selectedEvent?.actor || 'Person #01';
+  const objectName = selectedEvent?.object || selectedEvent?.target || 'Laptop #02';
+  const eventType = (selectedEvent?.type || selectedEvent?.event || 'PICK_UP').toUpperCase();
+
+  const isPickUp = eventType === 'PICK_UP';
+  const isApproach = eventType === 'APPROACH';
+  const isReach = eventType === 'REACH';
+  const isCarry = eventType === 'CARRY';
+
+  // Relation label
+  const activeRelation = isPickUp
+    ? 'holding'
+    : isCarry
+    ? 'carrying'
+    : isApproach
+    ? 'approaching'
+    : isReach
+    ? 'reaching'
+    : eventType.toLowerCase();
 
   return (
     <div className="panel scene-graph-card">
@@ -24,12 +39,12 @@ export default function SceneGraph({ selectedEvent }) {
           </div>
         </div>
         <span className="graph-state-tag">
-          {isPickUp ? "State: Holding [Active]" : isApproach ? "State: Approaching" : isReach ? "State: Reaching" : "State: Dynamic"}
+          State: {activeRelation.charAt(0).toUpperCase() + activeRelation.slice(1)} [Active]
         </span>
       </div>
 
       <div className="scene-graph-canvas">
-        {/* Node: Person #01 */}
+        {/* Subject Node */}
         <div className="graph-node node-person">
           <div className="node-icon-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -38,43 +53,32 @@ export default function SceneGraph({ selectedEvent }) {
             </svg>
           </div>
           <div className="node-info">
-            <span className="node-id">Person #01</span>
-            <span className="node-type">Subject (Human)</span>
+            <span className="node-id">{subjectName}</span>
+            <span className="node-type">Subject</span>
           </div>
         </div>
 
         {/* Relational Edge Center Hub */}
         <div className="graph-edges-column">
-          {/* Edge 1: Person -> Table or Person -> Laptop */}
-          <div className={`relation-edge ${isApproach ? 'active-edge pulse' : 'inactive-edge'}`}>
-            <span className="edge-label">approaching</span>
-            <span className="edge-arrow">↓</span>
-          </div>
-
-          <div className={`relation-edge ${isReach ? 'active-edge pulse' : 'inactive-edge'}`}>
-            <span className="edge-label">reaching</span>
-            <span className="edge-arrow">↓</span>
-          </div>
-
-          <div className={`relation-edge ${isPickUp || isCarry ? 'active-edge highlight-pickup pulse' : 'inactive-edge'}`}>
+          <div className={`relation-edge active-edge ${isPickUp ? 'highlight-pickup pulse' : 'pulse'}`}>
             <span className="edge-label highlight-label">
-              {isPickUp ? "● holding (PICK UP)" : isCarry ? "● holding & carrying" : "holding"}
+              ● {activeRelation}
             </span>
             <span className="edge-arrow">↓</span>
           </div>
 
           <div className={`relation-edge ${!isPickUp && !isCarry ? 'active-edge' : 'lifted-edge'}`}>
             <span className="edge-label">
-              {isPickUp || isCarry ? "lifted from (detached)" : "on (stationary)"}
+              {isPickUp || isCarry ? "detached from surface" : "on Table #01 (stationary)"}
             </span>
             <span className="edge-arrow">↓</span>
           </div>
         </div>
 
-        {/* Target Nodes (Laptop #02 and Table #01) */}
+        {/* Target Nodes */}
         <div className="graph-targets-column">
-          {/* Node: Laptop #02 */}
-          <div className={`graph-node node-laptop ${isPickUp || isCarry ? 'focused-node' : ''}`}>
+          {/* Target Object Node */}
+          <div className={`graph-node node-laptop ${isPickUp || isCarry || isReach ? 'focused-node' : ''}`}>
             <div className="node-icon-box cyan-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect width="18" height="12" x="3" y="4" rx="2" />
@@ -82,12 +86,12 @@ export default function SceneGraph({ selectedEvent }) {
               </svg>
             </div>
             <div className="node-info">
-              <span className="node-id">Laptop #02</span>
+              <span className="node-id">{objectName}</span>
               <span className="node-type">Target Object</span>
             </div>
           </div>
 
-          {/* Node: Table #01 */}
+          {/* Anchor Surface Node */}
           <div className={`graph-node node-table ${isApproach ? 'focused-node' : ''}`}>
             <div className="node-icon-box slate-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -98,7 +102,7 @@ export default function SceneGraph({ selectedEvent }) {
             </div>
             <div className="node-info">
               <span className="node-id">Table #01</span>
-              <span className="node-type">Surface / Context</span>
+              <span className="node-type">Context Anchor</span>
             </div>
           </div>
         </div>
@@ -107,11 +111,11 @@ export default function SceneGraph({ selectedEvent }) {
       {/* Triplet representation summary */}
       <div className="triplets-summary">
         <span className="triplet-tag">
-          <strong>Person #01</strong> → <em>{isPickUp ? "holding" : isApproach ? "approaching" : isReach ? "reaching" : "holding"}</em> → <strong>{isApproach ? "Table #01" : "Laptop #02"}</strong>
+          <strong>{subjectName}</strong> → <em>{activeRelation}</em> → <strong>{objectName}</strong>
         </span>
         {!isPickUp && !isCarry && (
           <span className="triplet-tag">
-            <strong>Laptop #02</strong> → <em>on</em> → <strong>Table #01</strong>
+            <strong>{objectName}</strong> → <em>on</em> → <strong>Table #01</strong>
           </span>
         )}
       </div>
