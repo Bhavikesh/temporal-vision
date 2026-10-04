@@ -29,7 +29,9 @@ export default function VideoPanel({
   selectedEvent = null,
   videoSrc = null,
   onTimeUpdate = null,
-  isMockMode = false
+  isMockMode = false,
+  onChangeDataset = null,
+  currentDataset = 'real'
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -41,6 +43,7 @@ export default function VideoPanel({
   const [activeVideoSrc, setActiveVideoSrc] = useState(videoSrc || 'http://localhost:8000/output/debug_video.mp4');
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [hasVideoError, setHasVideoError] = useState(false);
+  const [showVideoMenu, setShowVideoMenu] = useState(false);
 
   // Sync to selected event timestamp when event is selected
   useEffect(() => {
@@ -61,16 +64,16 @@ export default function VideoPanel({
 
   // Sync with prop videoSrc
   useEffect(() => {
-    if (videoSrc) {
-      setActiveVideoSrc(videoSrc);
+    if (videoSrc !== undefined) {
+      setActiveVideoSrc(videoSrc || (isMockMode ? null : 'http://localhost:8000/output/debug_video.mp4'));
       setHasVideoError(false);
     }
-  }, [videoSrc]);
+  }, [videoSrc, isMockMode]);
 
   // Simulation timer if real HTML5 video fails to load or no video
   useEffect(() => {
     let timer = null;
-    if (isPlaying && hasVideoError) {
+    if (isPlaying && (!activeVideoSrc || hasVideoError)) {
       timer = setInterval(() => {
         setCurrentTime((prev) => {
           const next = prev + 0.1;
@@ -86,7 +89,7 @@ export default function VideoPanel({
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isPlaying, hasVideoError, duration, onTimeUpdate]);
+  }, [isPlaying, activeVideoSrc, hasVideoError, duration, onTimeUpdate]);
 
   // Real HTML5 Video handlers
   const handlePlayPause = () => {
@@ -143,6 +146,7 @@ export default function VideoPanel({
       setHasVideoError(false);
       setIsPlaying(false);
       setCurrentTime(0);
+      setShowVideoMenu(false);
     }
   };
 
@@ -180,7 +184,7 @@ export default function VideoPanel({
           <div>
             <h2 className="panel-title">VIDEO PANEL</h2>
             <span className="panel-subtitle">
-              {activeVideoSrc && !hasVideoError ? "Annotated Perception Video Stream" : "Object Localization & Tracking"}
+              {currentDataset === 'real' ? "Real Perception Stream (Demo A)" : "Benchmark Lab Stream (Demo B)"}
             </span>
           </div>
         </div>
@@ -194,18 +198,53 @@ export default function VideoPanel({
             style={{ display: 'none' }}
             onChange={handleFileUpload}
           />
-          <button
-            className="video-source-btn"
-            onClick={() => fileInputRef.current?.click()}
-            title="Load custom video file"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            <span>Change Video</span>
-          </button>
+          
+          <div className="video-menu-dropdown-wrapper">
+            <button
+              className="video-source-btn"
+              onClick={() => setShowVideoMenu(!showVideoMenu)}
+              title="Change Video / Dataset Analysis"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span>Change Video ▾</span>
+            </button>
+
+            {showVideoMenu && (
+              <div className="video-options-menu">
+                <button
+                  className={`menu-option-btn ${currentDataset === 'real' ? 'active-opt' : ''}`}
+                  onClick={() => {
+                    if (onChangeDataset) onChangeDataset('real');
+                    setShowVideoMenu(false);
+                  }}
+                >
+                  <strong>Demo A:</strong> Real Pipeline Video
+                </button>
+                <button
+                  className={`menu-option-btn ${currentDataset === 'mock_demo' ? 'active-opt' : ''}`}
+                  onClick={() => {
+                    if (onChangeDataset) onChangeDataset('mock_demo');
+                    setShowVideoMenu(false);
+                  }}
+                >
+                  <strong>Demo B:</strong> Lab Benchmark Video
+                </button>
+                <button
+                  className="menu-option-btn upload-opt"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setShowVideoMenu(false);
+                  }}
+                >
+                  <strong>Custom:</strong> Load Video File...
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="timestamp-badge">
             <span className={`rec-dot ${isPlaying ? 'pulsing' : ''}`}></span>
@@ -213,6 +252,7 @@ export default function VideoPanel({
           </div>
         </div>
       </div>
+
 
       {/* Video Viewport Container */}
       <div className="video-viewport" ref={containerRef}>

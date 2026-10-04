@@ -29,13 +29,14 @@ export const checkHealth = async () => {
 
 /**
  * Fetch unified pipeline results from backend
- * GET http://localhost:8000/results?mock=true
+ * GET http://localhost:8000/results?mock=true / ?mock=false
  * 
- * @param {boolean} mock Whether to request mock dataset from backend (default true)
- * @returns {Promise<{ perception: Array, events: Array, explanation: any, source: string }>}
+ * @param {boolean|string} dataset 'real' | 'demo_a' | 'demo_b' | boolean
+ * @returns {Promise<{ perception: Array, events: Array, explanation: any, source: string, videoSrc: string }>}
  */
-export const getResults = async (mock = true) => {
-  const url = `${API_BASE_URL}/results?mock=${mock}`;
+export const getResults = async (dataset = false) => {
+  const isMock = typeof dataset === 'boolean' ? dataset : dataset !== 'real';
+  const url = `${API_BASE_URL}/results?mock=${isMock}`;
   
   const response = await fetch(url, {
     method: 'GET',
@@ -68,7 +69,7 @@ export const getResults = async (mock = true) => {
   }
 
   const normalizedPerception = rawObjects.length > 0
-    ? normalizeObjectList(rawObjects, 3840, 2160, mock)
+    ? normalizeObjectList(rawObjects, 3840, 2160, isMock)
     : [];
 
   // Normalize events to ensure id, type, and timestamp format
@@ -98,10 +99,12 @@ export const getResults = async (mock = true) => {
     perception: normalizedPerception,
     events: normalizedEvents,
     explanation: data.explanation || null,
-    source: mock ? 'backend_mock' : 'backend_live',
+    source: isMock ? 'backend_mock' : 'backend_live',
+    videoSrc: isMock ? null : `${API_BASE_URL}/output/debug_video.mp4`,
     raw: data
   };
 };
+
 
 /**
  * Fetch detected and tracked objects

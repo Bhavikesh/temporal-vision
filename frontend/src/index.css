@@ -422,6 +422,84 @@ body {
   gap: 0.625rem;
 }
 
+.dataset-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dataset-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dataset-dropdown {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.dataset-dropdown:focus {
+  border-color: var(--accent-blue);
+}
+
+.video-menu-dropdown-wrapper {
+  position: relative;
+}
+
+.video-options-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 220px;
+  z-index: 50;
+}
+
+.menu-option-btn {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.menu-option-btn:hover {
+  background: var(--bg-highlight);
+  color: var(--accent-blue);
+}
+
+.menu-option-btn.active-opt {
+  background: #eff6ff;
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.menu-option-btn.upload-opt {
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.2rem;
+  padding-top: 0.5rem;
+}
+
 .video-source-btn {
   display: inline-flex;
   align-items: center;
@@ -442,6 +520,7 @@ body {
   color: var(--accent-blue);
   background: var(--bg-highlight);
 }
+
 
 .timestamp-badge {
   display: flex;

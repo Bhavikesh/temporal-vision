@@ -3,7 +3,9 @@ import React from 'react';
 export default function Header({
   backendStatus = 'connected_mock',
   onRetry = null,
-  onToggleMode = null
+  onToggleMode = null,
+  currentDataset = 'real',
+  onSelectDataset = null
 }) {
   const isOffline = backendStatus === 'offline';
   const isConnectedMock = backendStatus === 'connected_mock';
@@ -58,6 +60,21 @@ export default function Header({
       </div>
 
       <div className="header-right">
+        {onSelectDataset && (
+          <div className="dataset-selector-group">
+            <label className="dataset-label" htmlFor="dataset-select">Dataset:</label>
+            <select
+              id="dataset-select"
+              className="dataset-dropdown"
+              value={currentDataset}
+              onChange={(e) => onSelectDataset(e.target.value)}
+            >
+              <option value="real">Demo A (Real Pipeline Artifact)</option>
+              <option value="mock_demo">Demo B (Lab Benchmark Scenario)</option>
+            </select>
+          </div>
+        )}
+
         {isOffline ? (
           <div className="status-pill offline-pill">
             <span className="status-dot offline-dot"></span>
@@ -91,3 +108,4 @@ export default function Header({
     </header>
   );
 }
+

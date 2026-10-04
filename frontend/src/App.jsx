@@ -21,21 +21,23 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [backendStatus, setBackendStatus] = useState('connecting'); // 'connecting' | 'connected_mock' | 'connected_live' | 'offline'
   const [apiError, setApiError] = useState(null);
-  const [useMockBackend, setUseMockBackend] = useState(false);
+  const [currentDataset, setCurrentDataset] = useState('real'); // 'real' | 'mock_demo'
 
-  // Fetch results from backend API
-  const fetchBackendData = useCallback(async (mockParam = false) => {
+  // Fetch results from backend API based on selected dataset
+  const fetchBackendData = useCallback(async (datasetId = 'real') => {
     setIsLoading(true);
     setApiError(null);
 
+    const isMock = datasetId !== 'real';
+
     try {
-      // Call GET http://localhost:8000/results?mock=false
-      const result = await getResults(mockParam);
+      // Call GET http://localhost:8000/results?mock=false (or true)
+      const result = await getResults(isMock);
 
       // Successfully connected to backend
       const perceptionList = result.perception && result.perception.length > 0
         ? result.perception
-        : normalizeObjectList(mockObjects, 800, 480, mockParam);
+        : normalizeObjectList(mockObjects, 800, 480, isMock);
 
       const eventList = result.events && result.events.length > 0
         ? result.events
@@ -44,7 +46,8 @@ export default function App() {
       setObjects(perceptionList);
       setEvents(eventList);
       setExplanation(result.explanation);
-      setBackendStatus(mockParam ? 'connected_mock' : 'connected_live');
+      setVideoSrc(result.videoSrc);
+      setBackendStatus(isMock ? 'connected_mock' : 'connected_live');
 
       // Set initial selected event if available
       const pickUpEvt = eventList.find((e) => (e.type || e.event) === 'PICK_UP');
@@ -63,6 +66,7 @@ export default function App() {
       setObjects(fallbackObjects);
       setEvents(mockEvents);
       setExplanation(null);
+      setVideoSrc(null);
 
       const pickUpEvt = mockEvents.find((e) => e.type === 'PICK_UP');
       if (pickUpEvt) {
@@ -74,8 +78,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetchBackendData(useMockBackend);
-  }, [fetchBackendData, useMockBackend]);
+    fetchBackendData(currentDataset);
+  }, [fetchBackendData, currentDataset]);
 
   const selectedEvent = events.find(
     (e) => e.id === selectedEventId || e.type === selectedEventId
@@ -83,20 +87,46 @@ export default function App() {
 
   const handleSelectEvent = (evt) => {
     setSelectedEventId(evt.id || evt.type);
+    if (evt.timestampSeconds !== undefined) {
+      setCurrentTime(evt.timestampSeconds);
+    }
   };
 
+  // Bidirectional sync: when video time advances or is scrubbed, activate the closest event
   const handleTimeUpdate = (newTime) => {
     setCurrentTime(newTime);
+    if (events && events.length > 0) {
+      let closestEvt = events[0];
+      let minDiff = Math.abs((closestEvt.timestampSeconds ?? 0) - newTime);
+
+      for (let i = 1; i < events.length; i++) {
+        const evtTime = events[i].timestampSeconds ?? 0;
+        const diff = Math.abs(evtTime - newTime);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestEvt = events[i];
+        }
+      }
+
+      if (closestEvt && (closestEvt.id || closestEvt.type) !== selectedEventId) {
+        setSelectedEventId(closestEvt.id || closestEvt.type);
+      }
+    }
   };
 
   const handleRetry = () => {
-    fetchBackendData(useMockBackend);
+    fetchBackendData(currentDataset);
+  };
+
+  const handleSelectDataset = (datasetId) => {
+    setCurrentDataset(datasetId);
+    setUseMockBackend(datasetId !== 'real');
   };
 
   const handleToggleMode = () => {
-    const nextMock = !useMockBackend;
-    setUseMockBackend(nextMock);
-    fetchBackendData(nextMock);
+    const nextMode = currentDataset === 'real' ? 'mock_demo' : 'real';
+    setCurrentDataset(nextMode);
+    setUseMockBackend(nextMode !== 'real');
   };
 
   return (
@@ -105,6 +135,8 @@ export default function App() {
         backendStatus={backendStatus}
         onRetry={handleRetry}
         onToggleMode={handleToggleMode}
+        currentDataset={currentDataset}
+        onSelectDataset={handleSelectDataset}
       />
 
       {/* Backend Offline Notification Banner if API is down */}
@@ -117,7 +149,7 @@ export default function App() {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span>
-              <strong>Backend Offline:</strong> Could not connect to <code>http://localhost:8000/results?mock=true</code>. Displaying local fallback data. Start the backend server and click <strong>Retry</strong> to connect.
+              <strong>Backend Offline:</strong> Could not connect to <code>http://localhost:8000/results?mock=false</code>. Displaying local fallback data. Start the backend server and click <strong>Retry</strong> to connect.
             </span>
           </div>
           <button className="banner-retry-btn" onClick={handleRetry}>
@@ -131,7 +163,7 @@ export default function App() {
         <div className="dashboard-loading-state">
           <div className="spinner large-spinner"></div>
           <p className="loading-text">Connecting to Temporal Vision Backend...</p>
-          <span className="loading-subtext">GET http://localhost:8000/results?mock=true</span>
+          <span className="loading-subtext">GET http://localhost:8000/results?mock={currentDataset !== 'real'}</span>
         </div>
       ) : (
         <main className="dashboard-main">
@@ -144,6 +176,8 @@ export default function App() {
                 videoSrc={videoSrc}
                 onTimeUpdate={handleTimeUpdate}
                 isMockMode={backendStatus !== 'connected_live'}
+                onChangeDataset={handleSelectDataset}
+                currentDataset={currentDataset}
               />
             </div>
             <div className="grid-right-timeline">
@@ -177,3 +211,4 @@ export default function App() {
     </div>
   );
 }
+
