@@ -234,11 +234,20 @@ export default function VideoPanel({
             muted
           />
         ) : (
-          /* Demo Canvas Backdrop if no HTML5 video */
+          /* Live Frame Image Stream fallback from actual perception frames */
           <div className="demo-canvas-backdrop">
+            <img
+              src={`http://localhost:8000/output/debug_frames/frame_${String(Math.min(714, Math.max(0, Math.floor(currentFrameEstimate / 3) * 3))).padStart(5, '0')}.jpg`}
+              alt={`Frame ${currentFrameEstimate}`}
+              className="real-frame-image"
+              onError={(e) => {
+                // If frame not found, hide image to show dark canvas
+                e.target.style.display = 'none';
+              }}
+            />
             <div className="grid-overlay"></div>
             <div className="demo-scene-art">
-              <div className="scene-camera-tag">CAMERA-01 • 4K • 30 FPS</div>
+              <div className="scene-camera-tag">PERCEPTION STREAM • {currentFrameEstimate} FRAMES • 30 FPS</div>
             </div>
           </div>
         )}
